@@ -1,0 +1,215 @@
+#!/bin/bash
+
+# Função para exibir mensagens de status
+log_info() {
+    echo -e "\e[34m[INFO]\e[0m $1"
+}
+
+log_success() {
+    echo -e "\e[32m[SUCCESS]\e[0m $1"
+}
+
+log_error() {
+    echo -e "\e[31m[ERROR]\e[0m $1"
+}
+
+# Função para verificar se um comando existe
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Atualizar o sistema
+log_info "Atualizando o sistema..."
+sudo apt update && sudo apt upgrade -y
+if [ $? -eq 0 ]; then
+    log_success "Sistema atualizado com sucesso."
+else
+    log_error "Falha ao atualizar o sistema. Verifique sua conexão com a internet ou os repositórios."
+    exit 1
+fi
+
+# Instalar ferramentas básicas
+log_info "Instalando ferramentas básicas (curl, git, build-essential)..."
+sudo apt install -y curl git build-essential
+if [ $? -eq 0 ]; then
+    log_success "Ferramentas básicas instaladas com sucesso."
+else
+    log_error "Falha ao instalar ferramentas básicas."
+    exit 1
+fi
+
+# Instalar VSCode
+log_info "Instalando VSCode..."
+if ! command_exists code; then
+    # Adicionar a chave GPG da Microsoft
+    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+    sudo install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
+    # Adicionar o repositório do VSCode
+    sudo sh -c 'echo "deb [arch=amd64,arm64,armhf] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
+    rm -f packages.microsoft.gpg
+    sudo apt update
+    sudo apt install -y code
+    if [ $? -eq 0 ]; then
+        log_success "VSCode instalado com sucesso."
+    else
+        log_error "Falha ao instalar VSCode."
+    fi
+else
+    log_info "VSCode já está instalado. Pulando a instalação."
+fi
+
+# Instalar pyenv (para Python)
+log_info "Instalando pyenv (gerenciador de versões Python)..."
+if ! command_exists pyenv; then
+    curl https://pyenv.run | bash
+    if [ $? -eq 0 ]; then
+        log_success "pyenv instalado com sucesso."
+        # Adicionar pyenv ao PATH (para a sessão atual e futuras)
+        echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+        echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+        echo 'eval "$(pyenv init --path)"' >> ~/.bashrc
+        echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
+        # Source .bashrc para que pyenv esteja disponível imediatamente
+        source ~/.bashrc
+        log_info "pyenv adicionado ao PATH. Por favor, reinicie seu terminal ou execute 'source ~/.bashrc' para que as mudanças tenham efeito."
+    else
+        log_error "Falha ao instalar pyenv."
+    fi
+else
+    log_info "pyenv já está instalado. Pulando a instalação."
+fi
+
+# Instalar nvm (para Node.js)
+log_info "Instalando nvm (gerenciador de versões Node.js)..."
+if ! command_exists nvm; then
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+    if [ $? -eq 0 ]; then
+        log_success "nvm instalado com sucesso."
+        # Adicionar nvm ao PATH (para a sessão atual e futuras)
+        echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc
+        echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc
+        echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> ~/.bashrc
+        # Source .bashrc para que nvm esteja disponível imediatamente
+        source ~/.bashrc
+        log_info "nvm adicionado ao PATH. Por favor, reinicie seu terminal ou execute 'source ~/.bashrc' para que as mudanças tenham efeito."
+    else
+        log_error "Falha ao instalar nvm."
+    fi
+else
+    log_info "nvm já está instalado. Pulando a instalação."
+fi
+
+# Instalar Docker
+log_info "Instalando Docker..."
+if ! command_exists docker; then
+    sudo apt install -y apt-transport-https ca-certificates software-properties-common
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt update
+    sudo apt install -y docker-ce docker-ce-cli containerd.io
+    sudo usermod -aG docker $USER
+    if [ $? -eq 0 ]; then
+        log_success "Docker instalado com sucesso. Você precisará reiniciar sua sessão para usar o Docker sem sudo."
+    else
+        log_error "Falha ao instalar Docker."
+    fi
+else
+    log_info "Docker já está instalado. Pulando a instalação."
+fi
+
+# Instalar Zsh e Oh My Zsh
+log_info "Instalando Zsh e Oh My Zsh..."
+if ! command_exists zsh; then
+    sudo apt install -y zsh
+    if [ $? -eq 0 ]; then
+        log_success "Zsh instalado com sucesso."
+        log_info "Instalando Oh My Zsh..."
+        # Instalação não interativa do Oh My Zsh
+        CHSH=no RUNZSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+        if [ $? -eq 0 ]; then
+            log_success "Oh My Zsh instalado com sucesso."
+            log_info "Definindo Zsh como shell padrão. Você precisará reiniciar sua sessão para que as mudanças tenham efeito."
+            chsh -s $(which zsh)
+        else
+            log_error "Falha ao instalar Oh My Zsh."
+        fi
+    else
+        log_error "Falha ao instalar Zsh."
+    fi
+else
+    log_info "Zsh já está instalado. Pulando a instalação."
+fi
+
+# Instalar Wireshark
+log_info "Instalando Wireshark..."
+if ! command_exists wireshark; then
+    sudo apt install -y wireshark
+    if [ $? -eq 0 ]; then
+        log_success "Wireshark instalado com sucesso."
+        log_info "Para permitir que usuários não-root capturem pacotes, execute: sudo dpkg-reconfigure wireshark-common"
+    else
+        log_error "Falha ao instalar Wireshark."
+    fi
+else
+    log_info "Wireshark já está instalado. Pulando a instalação."
+fi
+
+# Instalar ferramentas de rede
+log_info "Instalando ferramentas de rede (net-tools, iproute2, iftop, nethogs)..."
+sudo apt install -y net-tools iproute2 iftop nethogs
+if [ $? -eq 0 ]; then
+    log_success "Ferramentas de rede instaladas com sucesso."
+else
+    log_error "Falha ao instalar ferramentas de rede."
+fi
+
+# Instalar rkhunter (verificador de rootkits)
+log_info "Instalando rkhunter..."
+sudo apt install -y rkhunter
+if [ $? -eq 0 ]; then
+    log_success "rkhunter instalado com sucesso."
+    log_info "Para atualizar o banco de dados do rkhunter, execute: sudo rkhunter --update"
+    log_info "Para verificar o sistema com rkhunter, execute: sudo rkhunter --check"
+else
+    log_info "rkhunter já está instalado. Pulando a instalação."
+fi
+
+# Instalar e configurar UFW (Uncomplicated Firewall)
+log_info "Instalando e configurando UFW..."
+sudo apt install -y ufw
+if [ $? -eq 0 ]; then
+    log_success "UFW instalado com sucesso."
+    log_info "Configurando UFW para permitir SSH e negar o resto..."
+    sudo ufw allow ssh
+    sudo ufw enable
+    if [ $? -eq 0 ]; then
+        log_success "UFW configurado e ativado com sucesso. Verifique o status com 'sudo ufw status'."
+    else
+        log_error "Falha ao configurar ou ativar UFW."
+    fi
+else
+    log_info "UFW já está instalado. Pulando a instalação."
+fi
+
+# Instalar Fail2Ban
+log_info "Instalando Fail2Ban..."
+sudo apt install -y fail2ban
+if [ $? -eq 0 ]; then
+    log_success "Fail2Ban instalado com sucesso."
+    log_info "Fail2Ban foi instalado e iniciado. Verifique o status com 'sudo systemctl status fail2ban'."
+else
+    log_info "Fail2Ban já está instalado. Pulando a instalação."
+fi
+
+# Instalar auditd
+log_info "Instalando auditd..."
+sudo apt install -y auditd audispd-plugins
+if [ $? -eq 0 ]; then
+    log_success "auditd instalado com sucesso."
+    log_info "auditd foi instalado e iniciado. Verifique o status com 'sudo systemctl status auditd'."
+else
+    log_info "auditd já está instalado. Pulando a instalação."
+fi
+
+log_success "Instalação do ambiente de desenvolvimento e segurança concluída!"
+log_info "Por favor, reinicie seu terminal para que todas as mudanças tenham efeito, especialmente para pyenv, nvm e Docker."
